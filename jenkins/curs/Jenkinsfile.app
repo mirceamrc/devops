@@ -12,21 +12,24 @@ pipeline {
 
     stages {
 
+        agent { docker { image 'python:3.11' } }
         stage('Lint - verific sintaxa') {
             steps {
-                dir("${DIR_LUCRU}") {
-                    sh 'pip install flake8 --break-system-packages'
-                    sh 'python3 -m flake8 .'
-                }
+              dir("${WORKDIR}") {
+                  sh 'printenv'
+                  sh 'pip install flake8'
+                  sh 'python3 -m flake8 .'
+              }
             }
         }
 
         stage('Test') {
+            agent { docker { image 'python:3.11' } }
             steps {
-                dir("${DIR_LUCRU}") {
-                    sh 'pip install pytest --break-system-packages'
-                    sh 'pip install -r requirements.txt --break-system-packages'
-                    sh 'python3 -m pytest .'
+                dir("${WORKDIR}") {
+                    sh 'pip install -r requirements.txt'
+                    sh 'python3 -m pytest . --junitxml=report.xml'
+                    junit 'report.xml'
                 }
             }
         }
