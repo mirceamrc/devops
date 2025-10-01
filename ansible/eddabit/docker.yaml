@@ -1,0 +1,137 @@
+---
+- name: Install or update Docker following official documentation
+  hosts: all
+  become: yes
+  tasks:
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Check if Docker Compose is installed
+      command: docker compose version
+      register: compose_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Show current versions if installed
+      debug:
+        msg:
+          - "Docker already installed: {{ docker_check.stdout | default('not installed') }}"
+          - "Docker Compose already installed: {{ compose_check.stdout | default('not installed') }}"
+      when: docker_check.rc == 0
+
+    # ============ INSTALL STEPS ============
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+      when: docker_check.rc != 0
+
+    - name: Install required packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+      when: docker_check.rc != 0
+
+    - name: Create directory for apt keyrings
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+      when: docker_check.rc != 0
+
+    - name: Download Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+      when: docker_check.rc != 0
+
+    - name: Detect correct Ubuntu codename for Docker repo
+      set_fact:
+        docker_codename: >-
+          {% if ansible_distribution_version is version('20.04', '==') %}
+          focal
+          {% elif ansible_distribution_version is version('22.04', '==') %}
+          jammy
+          {% elif ansible_distribution_version is version('24.04', '==') %}
+          noble
+          {% else %}
+          {{ ansible_distribution_release }}
+          {% endif %}
+      when: docker_check.rc != 0
+
+    - name: Add Docker repository
+      copy:
+        dest: /etc/apt/sources.list.d/docker.list
+        content: |
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ docker_codename }} stable
+        mode: '0644'
+      when: docker_check.rc != 0
+
+    - name: Update apt package index after adding Docker repo
+      apt:
+        update_cache: yes
+      when: docker_check.rc != 0
+
+    - name: Install Docker Engine and plugins
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+      when: docker_check.rc != 0
+
+    - name: Ensure Docker service is enabled and running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      when: docker_check.rc != 0
+
+    # ============ UPDATE STEPS ============
+    - name: Check for available updates for Docker
+      shell: apt list --upgradable 2>/dev/null | grep docker || true
+      register: docker_updates
+      changed_when: false
+      when: docker_check.rc == 0
+
+    - name: Show update info if available
+      debug:
+        msg: "Updates available for Docker packages: {{ docker_updates.stdout_lines }}"
+      when: docker_check.rc == 0 and docker_updates.stdout != ""
+
+    - name: Upgrade Docker packages if updates exist
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: latest
+      when: docker_check.rc == 0 and docker_updates.stdout != ""
+
+    - name: Re-check Docker version after update
+      command: docker --version
+      register: docker_new_version
+      changed_when: false
+      when: docker_check.rc == 0
+
+    - name: Re-check Docker Compose version after update
+      command: docker compose version
+      register: compose_new_version
+      changed_when: false
+      when: docker_check.rc == 0
+
+    - name: Show final installed versions
+      debug:
+        msg:
+          - "Docker final version: {{ docker_new_version.stdout | default(docker_check.stdout) }}"
+          - "Docker Compose final version: {{ compose_new_version.stdout | default(compose_check.stdout) }}"

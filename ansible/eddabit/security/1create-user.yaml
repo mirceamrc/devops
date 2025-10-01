@@ -1,0 +1,68 @@
+---
+- name: Create molox user with sudo (NOPASSWD), optional docker access and SSH key
+  hosts: all
+  become: true
+  vars:
+    molox_ssh_public_key: "{{ lookup('file', lookup_ssh_pubkey_path) }}"
+    lookup_ssh_pubkey_path: "./eddabit_id.pub"
+
+  tasks:
+    - name: Verificam daca grupul docker exista
+      command: grep -w docker /etc/group
+      register: docker_group
+      ignore_errors: true
+      changed_when: false
+
+    - name: Afiseaza status comanda "cauta group"
+      debug:
+        var: docker_group.rc
+
+    - name: Afiseaza output comanda "cauta group"
+      debug:
+        var: docker_group.stdout
+
+    - name: Adaugam userul molox daca nu exista
+      user:
+        name: molox
+        state: present
+        create_home: yes
+        shell: /bin/bash
+
+    - name: Adaugam userul molox in grupul sudo
+      user:
+        name: molox
+        groups: sudo
+        append: yes
+
+    - name: Adaugam userul molox in grupul docker (daca exista)
+      user:
+        name: molox
+        groups: docker
+        append: yes
+      when: docker_group.rc == 0
+
+    - name: Configuram sudo fara parola pentru molox
+      copy:
+        dest: /etc/sudoers.d/molox
+        content: "molox ALL=(ALL) NOPASSWD:ALL"
+        mode: '0440'
+
+    - name: Ensure .ssh directory exists for molox
+      file:
+        path: /home/molox/.ssh
+        state: directory
+        owner: molox
+        group: molox
+        mode: '0700'
+
+    - name: Install provided SSH public key for molox (if variable provided)
+      authorized_key:
+        user: molox
+        key: "{{ molox_ssh_public_key }}"
+        state: present
+      when: molox_ssh_public_key is defined and molox_ssh_public_key | length > 0
+
+    - name: Show message if no SSH key provided
+      debug:
+        msg: "No SSH public key provided for molox; skip adding authorized_key. Provide via molox_ssh_public_key."
+      when: molox_ssh_public_key is not defined or molox_ssh_public_key | length == 0

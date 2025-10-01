@@ -1,0 +1,5 @@
+- name: Ping frontend hosts
+  hosts: all
+  tasks:
+    - name: Test ping
+      ping:

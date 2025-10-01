@@ -1,0 +1,132 @@
+---
+- name: Complete Security Hardening (SSH + UFW + Fail2Ban)
+  hosts: all
+  become: yes
+  vars:
+    ssh_port: 1309
+    ssh_override_file: "/etc/ssh/sshd_config.d/99-hardening.conf"
+    fail2ban_jail_local: /etc/fail2ban/jail.local
+    bantime: 3600
+    findtime: 600
+    maxretry_default: 5
+    maxretry_sshd: 3
+
+  tasks:
+    # ================= SSH HARDENING =================
+    - name: Ensure SSH include directive exists in sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^Include /etc/ssh/sshd_config.d/\*\.conf'
+        line: 'Include /etc/ssh/sshd_config.d/*.conf'
+        state: present
+        backup: yes
+
+    - name: Ensure override SSH config directory exists
+      file:
+        path: /etc/ssh/sshd_config.d
+        state: directory
+        mode: '0755'
+
+    - name: Add SSH hardening directives in override file
+      copy:
+        dest: "{{ ssh_override_file }}"
+        content: |
+          PasswordAuthentication no
+          PermitRootLogin no
+          PermitEmptyPasswords no
+          AddressFamily inet
+          Port {{ ssh_port }}
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart SSH
+
+    # ================= UFW FIREWALL =================
+    - name: Ensure UFW is installed
+      apt:
+        name: ufw
+        state: present
+        update_cache: yes
+
+    - name: Allow SSH port in UFW
+      ufw:
+        rule: allow
+        port: "{{ ssh_port }}"
+        proto: tcp
+
+    - name: Deny all other incoming connections
+      ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: Allow all outgoing connections
+      ufw:
+        state: enabled
+        policy: allow
+        direction: outgoing
+
+    - name: Ensure UFW is enabled
+      ufw:
+        state: enabled
+
+    # ================= FAIL2BAN =================
+    - name: Install Fail2Ban
+      apt:
+        name: fail2ban
+        state: present
+        update_cache: yes
+
+    - name: Ensure Fail2Ban service is enabled and running
+      service:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+    - name: Copy jail.conf to jail.local if it does not exist
+      copy:
+        src: /etc/fail2ban/jail.conf
+        dest: "{{ fail2ban_jail_local }}"
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+        force: no
+      notify: Restart Fail2Ban
+
+    - name: Configure DEFAULT section in jail.local
+      ini_file:
+        path: "{{ fail2ban_jail_local }}"
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      loop:
+        - { option: bantime, value: "{{ bantime }}" }
+        - { option: findtime, value: "{{ findtime }}" }
+        - { option: maxretry, value: "{{ maxretry_default }}" }
+      notify: Restart Fail2Ban
+
+    - name: Configure SSHD jail in jail.local
+      ini_file:
+        path: "{{ fail2ban_jail_local }}"
+        section: sshd
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      loop:
+        - { option: enabled, value: "true" }
+        - { option: port, value: "{{ ssh_port }}" }
+        - { option: logpath, value: "%(sshd_log)s" }
+        - { option: backend, value: "%(sshd_backend)s" }
+        - { option: maxretry, value: "{{ maxretry_sshd }}" }
+      notify: Restart Fail2Ban
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted
+
+    - name: Restart Fail2Ban
+      service:
+        name: fail2ban
+        state: restarted

@@ -1,0 +1,26 @@
+- name: Verifica daca domeniile sunt UP
+  hosts: all
+  vars_files:
+    - domains.yaml
+
+  tasks:
+    - name: Print domain name
+      debug:
+        msg: "Numele domeniului curent este {{ item }}"
+      loop: "{{ domains }}"
+
+    - name: Ping domain name
+      command: "ping -c 1 {{ item}}"
+      register: rezultat_ping
+      loop: "{{ domains }}"
+      ignore_errors: true
+
+    - name: Print domain name
+      debug:
+        msg: "Site: {{ item.item }} Rezultat ping: {{ item.msg }}"
+      loop: "{{ rezultat_ping.results }}"
+
+    - name: Print subdomain name
+      debug:
+        msg: "Numele subdomeniului curent este {{ item }}"
+      loop: "{{ subdomains }}"

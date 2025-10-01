@@ -1,0 +1,11 @@
+domains:
+  - google.com
+  - itschool.ro
+  - exemple.com
+  - nucredcaexista.com
+subdomains:
+  - www
+  - admin
+  - dev
+  - qa
+  - prod

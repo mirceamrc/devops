@@ -1,0 +1,15 @@
+- name: Conectare la baza de date
+  hosts: all
+  vars_files:
+    - secrets-db.yaml
+    - secrets-aws.yaml
+
+  tasks:
+
+    - name: ma conectez la AWS
+      debug:
+        msg: "Aici ma conectez la AWS folosind {{ aws_token }}" 
+
+    - name: ma conectez al baza de date
+      debug:
+        msg: "Aici ma conectez la baza de date folosind {{ db_host }} {{ db_user }} si {{ db_pass }}"

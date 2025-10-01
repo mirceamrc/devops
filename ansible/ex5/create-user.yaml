@@ -1,0 +1,30 @@
+- name: Create dev user
+  hosts: all
+  become: true
+  tasks:
+
+    - name: Verificam daca grupul docker exista
+      command: grep -w docker /etc/group   # putem rula comenzi
+      register: docker_group  # rezultatul comenzii de mai sus o pune in variabila docker_group
+      ignore_errors: true # daca apar erori sa nu le bage in seama si sa mearga mai departe
+
+    - name: Afiseaza status comanda "cauta group"
+      debug:
+        var: docker_group.rc   # rc=0 succes   1=eroare
+    - name: Afiseaza output comanda "cauta group"
+      debug:
+        var: docker_group.stdout   
+
+    - name: Adaugam userul daca nu exista
+      user:
+        name: dev
+        state: present
+        create_home: yes
+        shell: /bin/bash
+   
+    - name: Adaugam userul la docker grup
+      user:
+        name: dev
+        groups: docker
+        append: yes
+      when: docker_group.rc == 0 

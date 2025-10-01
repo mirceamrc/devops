@@ -1,0 +1,14 @@
+- name: Create empty file
+  hosts: all
+  tasks:
+    - name: Create /tmp/file1.txt
+      file:
+        path: /tmp/file1.txt
+        state: touch
+        mode: u=rw,g=rw,o=r
+
+    - name: Create /tmp/file2.txt
+      file:
+        path: /tmp/file2.txt
+        state: touch
+        mode: u=rw,g=rw,o=r
