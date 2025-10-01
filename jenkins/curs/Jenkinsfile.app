@@ -11,9 +11,8 @@ pipeline {
     }
 
     stages {
-
-        agent { docker { image 'python:3.11' } }
         stage('Lint - verific sintaxa') {
+            agent { docker { image 'python:3.11' } }
             steps {
               dir("${WORKDIR}") {
                   sh 'printenv'
