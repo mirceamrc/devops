@@ -1,2 +1,0 @@
-[mongodb]
-app1 ansible_host=5.183.171.185 ansible_user=molox
